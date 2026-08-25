@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Azure Speech-to-Text</title>
+  <!-- Load Speech SDK with HTTPs fallback -->
   <script src="https://cdn.jsdelivr.net/npm/microsoft-cognitiveservices-speech-sdk@latest/distrib/browser/microsoft.cognitiveservices.speech.sdk.bundle-min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; }
@@ -11,14 +12,17 @@
     input { flex: 1; padding: 8px; }
     button { padding: 10px 20px; cursor: pointer; background: #0078d4; color: white; border: none; border-radius: 4px; }
     #output { width: 100%; height: 200px; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+    #status { color: #d9534f; margin-bottom: 10px; font-weight: bold; }
   </style>
 </head>
 <body>
-  <h2>Speech-to-Text App</h2>
+  <h2>Azure Speech-to-Text App</h2>
   
+  <div id="status"></div>
+
   <div class="controls">
     <input type="password" id="speechKey" placeholder="Azure Speech Key">
-    <input type="text" id="speechRegion" placeholder="Region (e.g., eastus)">
+    <input type="text" id="speechRegion" placeholder="Region (e.g. eastus)">
   </div>
   
   <div class="controls">
@@ -30,47 +34,67 @@
 
   <script>
     let recognizer;
-
     const startBtn = document.getElementById('startBtn');
     const stopBtn = document.getElementById('stopBtn');
     const output = document.getElementById('output');
+    const status = document.getElementById('status');
 
-    startBtn.addEventListener('click', () => {
-      const key = document.getElementById('speechKey').value;
-      const region = document.getElementById('speechRegion').value;
+    startBtn.addEventListener('click', async () => {
+      status.textContent = "";
+      const key = document.getElementById('speechKey').value.trim();
+      const region = document.getElementById('speechRegion').value.trim().toLowerCase();
 
       if (!key || !region) {
-        alert("Please provide both Azure Speech Key and Region.");
+        status.textContent = "Error: Please enter both your Speech Key and Region.";
         return;
       }
 
-      const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(key, region);
-      speechConfig.speechRecognitionLanguage = "en-US";
+      if (typeof SpeechSDK === 'undefined') {
+        status.textContent = "Error: Speech SDK failed to load. Check your internet connection or ad-blocker.";
+        return;
+      }
 
-      const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
-      recognizer = new SpeechSDK.SpeechRecognizer(speechConfig, audioConfig);
+      try {
+        // Explicitly request microphone permissions first
+        await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      recognizer.recognizing = (s, e) => {
-        output.value = `[Listening...] ${e.result.text}`;
-      };
+        const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(key, region);
+        speechConfig.speechRecognitionLanguage = "en-US";
+        const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
 
-      recognizer.recognized = (s, e) => {
-        if (e.result.reason === SpeechSDK.ResultReason.RecognizedSpeech) {
-          output.value += `\n${e.result.text}`;
-        }
-      };
+        recognizer = new SpeechSDK.SpeechRecognizer(speechConfig, audioConfig);
 
-      recognizer.startContinuousRecognitionAsync(
-        () => {
-          startBtn.disabled = true;
-          stopBtn.disabled = false;
-          output.value = "Listening started...\n";
-        },
-        err => console.error("Error starting recognition:", err)
-      );
+        recognizer.recognizing = (s, e) => {
+          output.value = `[Listening...] ${e.result.text}`;
+        };
+
+        recognizer.recognized = (s, e) => {
+          if (e.result.reason === SpeechSDK.ResultReason.RecognizedSpeech) {
+            output.value += `\n${e.result.text}`;
+          }
+        };
+
+        recognizer.canceled = (s, e) => {
+          status.textContent = `Error: ${e.errorDetails}`;
+          stopRecording();
+        };
+
+        recognizer.startContinuousRecognitionAsync(
+          () => {
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            output.value = "Listening... Start speaking into your microphone.\n";
+          },
+          err => {
+            status.textContent = `Failed to start: ${err}`;
+          }
+        );
+      } catch (err) {
+        status.textContent = "Microphone access denied or not available.";
+      }
     });
 
-    stopBtn.addEventListener('click', () => {
+    function stopRecording() {
       if (recognizer) {
         recognizer.stopContinuousRecognitionAsync(() => {
           startBtn.disabled = false;
@@ -78,7 +102,9 @@
           output.value += "\n[Stopped]";
         });
       }
-    });
+    }
+
+    stopBtn.addEventListener('click', stopRecording);
   </script>
 </body>
 </html>
