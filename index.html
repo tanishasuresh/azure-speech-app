@@ -3,12 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Voice Ordering Prototype</title>
+  <title>Voice Ordering App Prototype</title>
   <script src="https://cdn.jsdelivr.net/npm/microsoft-cognitiveservices-speech-sdk@latest/distrib/browser/microsoft.cognitiveservices.speech.sdk.bundle-min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; }
     .controls { display: flex; gap: 10px; margin-bottom: 20px; }
     button { padding: 10px 20px; cursor: pointer; background: #0078d4; color: white; border: none; border-radius: 4px; }
+    button:disabled { background: #cccccc; cursor: not-allowed; }
     #output { width: 100%; height: 200px; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
     #status { color: #d9534f; margin-bottom: 10px; font-weight: bold; }
   </style>
@@ -32,9 +33,10 @@
     const output = document.getElementById('output');
     const status = document.getElementById('status');
 
+    // Automatically fetch temporary authorization token from your backend API
     async function getAuthorizationToken() {
       const response = await fetch('/api/get-speech-token');
-      if (!response.ok) throw new Error("Failed to fetch token from backend server.");
+      if (!response.ok) throw new Error("Could not fetch speech token from backend.");
       return await response.json();
     }
 
@@ -42,14 +44,14 @@
       status.textContent = "";
 
       if (typeof SpeechSDK === 'undefined') {
-        status.textContent = "Error: Speech SDK failed to load.";
+        status.textContent = "Error: Speech SDK failed to load. Check your internet connection.";
         return;
       }
 
       try {
         await navigator.mediaDevices.getUserMedia({ audio: true });
 
-        // Retrieve authorization token dynamically
+        // Retrieve token dynamically without manual input
         const { token, region } = await getAuthorizationToken();
         const speechConfig = SpeechSDK.SpeechConfig.fromAuthorizationToken(token, region);
         speechConfig.speechRecognitionLanguage = "en-US";
@@ -79,11 +81,11 @@
             output.value = "Listening... Speak your order into the microphone.\n";
           },
           err => {
-            status.textContent = `Failed to start: ${err}`;
+            status.textContent = `Failed to start recognition: ${err}`;
           }
         );
       } catch (err) {
-        status.textContent = `Error initializing speech session: ${err.message}`;
+        status.textContent = `Error: ${err.message}`;
       }
     });
 
