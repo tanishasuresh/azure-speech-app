@@ -21,9 +21,10 @@ module.exports = async function (context, req) {
             body: { token: response.data, region: region }
         };
     } catch (err) {
-        context.res = {
-            status: 500,
-            body: "Could not fetch speech token."
-        };
+    context.log.error(err);   // <-- new line: logs the real error
+    context.res = {
+        status: 500,
+        body: "Could not fetch speech token."
+    };
     }
 };
